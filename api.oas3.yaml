@@ -1,0 +1,305 @@
+openapi: 3.0.3
+
+info:
+  version: "1.0"
+  title: eTOLL
+  description: eTOLL REST API
+  contact:
+    name: Tomasz Jakub Rup
+    email: tomasz.rup@gmail.com
+
+paths:
+  /:
+    post:
+      operationId: add
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              maxItems: 10000
+              items:
+                $ref: "#/components/schemas/Row"
+        required: true
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        400:
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        401:
+          $ref: "#/components/responses/Unauthorized"
+        404:
+          $ref: "#/components/responses/NotFound"
+        405:
+          $ref: "#/components/responses/MethodNotAllowed"
+        415:
+          $ref: "#/components/responses/UnsupportedMediaType"
+        500:
+          $ref: "#/components/responses/InternalServerError"
+        503:
+          $ref: "#/components/responses/ServiceUnavailable"
+      servers:
+        - url: https://communication.etoll.gov.pl:{port}/zsl/ssl/{path}
+          description: Production server
+          variables:
+            port:
+              default: "443"
+            path:
+              default: "10000000-0001-1001-0001-0000000000001"
+        - url: https://spoe-dev.il-pib.pl:{port}/zsl/ssl/{path}
+          description: Test server
+          variables:
+            port:
+              default: "8443"
+            path:
+              default: "10000000-0001-1001-0001-0000000000001"
+
+components:
+  responses:
+    Unauthorized:
+      description: Unauthorized
+
+    UnsupportedMediaType:
+      description: Unsupported media type
+
+    InternalServerError:
+      description: Internal server error
+
+    NotFound:
+      description: Not found
+
+    MethodNotAllowed:
+      description: Method not allowed
+      $ref: "#/components/schemas/ErrorResponse"
+
+    ServiceUnavailable:
+      description: Service unavailable
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          format: int32
+        error:
+          type: string
+        message:
+          type: string
+        
+    Response:
+      type: object
+      required:
+        - result
+      properties:
+        result:
+          type: string
+          enum:
+            - OK
+            - ERROR
+        code:
+          type: string
+        validation_error:
+          type: array
+          items:
+            type: string
+        warning:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
+
+    Warning:
+      type: object
+      properties:
+        tsp:
+          type: integer
+          format: int64
+        msg:
+          type: string
+        code:
+          type: string
+          enum:
+            - tsp-past
+            - tsp-future
+            - dev-not-tech
+            - dev-unknown
+            - not-pl
+        dev:
+          type: string
+        now:
+          type: integer
+          format: int64
+        action:
+          type: string
+          enum:
+            - pass
+            - drop
+        reason:
+          $ref: "#/components/schemas/Reason"
+
+    Reason:
+      type: object
+      properties:
+        id:
+          type: string
+        rule:
+          type: string
+        lon:
+          type: number
+        lat:
+          type: number
+    
+    Row:
+      type: object
+      required:
+        - dataId
+        - serialNumber
+        - latitude
+        - longitude
+        - fixTimeEpoch
+        - gpsSpeed
+        - gpsHeading
+        - eventType
+        - satellitesForFix
+      properties:
+        dataId:
+          description: Unikalny i inkrementowany (na poziomie OBE) identyfikator rekordu w systemie źródłowym, zmienna stosowana dla potrzeb weryfikacji w okresie testów oraz przydatna do sortowania – uzupełniania danych gdy paczki nie będą wysyłane w kolejności.
+          type: string
+          minLength: 1
+          maxLength: 32
+          example:
+            - "1"
+            - "1960472"
+        serialNumber:
+          description: Unikalny identyfikator lokalizatora, dozwolona maksymalna długość 50 znaków, dozwolone są małe i wielkie litery łacińskie z przedziałów (a-z) i (A-Z), cyfry (0-9) oraz znaki myślnik-minus (ang. hyphen-minus) (-) i podkreślenie (ang. underscore) (_), które stanowią podzbiór znaków ASCII (ang. American Standard Code for Information Interchange). Wielkość liter nie jest rozróżniana.
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern:  ^[a-zA-Z0-9\-_]{1,50}$
+          example:
+            - "00000000000B1"
+            - "35A058060495422C7934"
+        latitude:
+          description: "Szerokość geograficzna pobrana z nadajnika GNSS, system odniesienia WGS 84, zalecana minimalna liczba miejsc po przecinku: 6"
+          type: number
+          minimum: -90.0
+          maximum: 90.0
+          multipleOf: 0.0000000001
+          example:
+            - 52.0375868826
+            - 52.172644
+        longitude:
+          description: "Długość geograficzna pobrana z nadajnika GNSS, system odniesienia WGS 84, zalecana minimalna liczba miejsc po przecinku: 6"
+          type: number
+          minimum: -180.0
+          maximum: 180.0
+          multipleOf: 0.0000000001
+          example:
+            - 21.1956136
+            - 20.026094
+        altitude:
+          description: "Wysokość elipsoidalna pobrana z nadajnika GNSS, jednostka [m]"
+          type: number
+          nullable: true
+          minimum: -1000.0
+          maximum: 4000.0
+          multipleOf: 0.01
+          example:
+            - 10.0
+            - 200.02
+        fixTimeEpoch:
+          description: "Stempel czasowy zawierający datę i czas pobrane z nadajnika GNSS, skojarzone z pozycją geograficzną z danego rekordu, strefa czasowa UTC, stempel czasowy SPOE KAS posiada format zbliżony do Epoch / Unix Timestamp, ale podany z dokładnością do mikrosekundy (16 cyfr), jest to zatem liczba mikrosekund, które upłynęły od '00:00:00 Coordinated Universal Time (UTC), Czwartek, 1 Stycznia 1970'"
+          type: integer
+          format: int64
+          minimum: 1505865600000000
+          example:
+            - 1506086623000000
+            - 1511273867317000
+        gpsSpeed:
+          description: "Prędkość przemieszczania się pobrana z nadajnika GNSS - jednostka [m/s]"
+          type: number
+          minimum: 0.0
+          maximum: 56.0
+          multipleOf: 0.01
+          example:
+            - 3.21
+            - 20.0
+        accuracy:
+          description: "Dokładność lokalizacji pobrana z nadajnika GNSS - promień okręgu w metrach"
+          type: number
+          minimum: 0.0
+          multipleOf: 0.01
+          nullable: true
+          example:
+            - 10.14
+            - 30.0
+        gpsHeading:
+          description: "Azymut - jednostka [stopień]"
+          type: number
+          minimum: 0.0
+          maximum: 360.0
+          multipleOf: 0.01
+          example:
+            - 40.14
+            - 230.0
+        eventType:
+          description: typ zdarzenia
+          type: string
+          enum:
+            - turnon
+            - turnoff
+            - startjourney
+            - endjourney
+            - plugout
+            - plugon
+            - gsmonline
+            - gsmoffline
+            - gpsonline
+            - gpsoffline
+            - jamming
+            - spoofing
+            - location
+        lac:
+          description: Identyfikator obszaru stacji bazowej GNSS
+          type: string
+          nullable: true
+          pattern: ^[A-Fa-f0-9]{4}$
+        mcc:
+          description: identyfikator kraju operatora GSM
+          type: string
+          nullable: true
+          pattern: ^[0-9]{3}$
+        mnc:
+          description: identyfikator sieci operatora GSM
+          type: string
+          nullable: true
+          pattern: ^[0-9]{2,3}$
+        mobileCellId:
+          description: identyfikator komórki sieci GNSS
+          type: string
+          nullable: true
+          pattern: ^[A-Fa-f0-9]{ 9}$
+        satellitesForFix:
+          description: liczba satelitów użytych do ustalenia pozycji
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 90
+        satellitesInView:
+          description: liczba widocznych satelitów podczas ustalenia pozycji
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 90
